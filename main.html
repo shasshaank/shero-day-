@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shero Day</title>
+    <style>
+        :root {
+            --primary: #ff69b4;
+            --secondary: #f8f9fa;
+            --accent: #9b4dca;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f6d5f7, #fbe9d7);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            text-align: center;
+        }
+
+        h1 {
+            color: var(--primary);
+            margin-bottom: 2rem;
+            font-size: 2.5rem;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            animation: heartbeat 1.5s infinite;
+        }
+
+        @keyframes heartbeat {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .game-container {
+            background: white;
+            padding: 2rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .game-select {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 1.1rem;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            background: var(--primary);
+        }
+
+        canvas {
+            background: var(--secondary);
+            border-radius: 0.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .score {
+            font-size: 1.5rem;
+            color: var(--accent);
+            margin: 1rem 0;
+        }
+
+        .message {
+            color: var(--primary);
+            font-size: 1.2rem;
+            margin: 1rem 0;
+            min-height: 3rem;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            background: rgba(255,105,180,0.1);
+        }
+
+        .instructions {
+            color: #666;
+            margin: 1rem 0;
+            font-style: italic;
+        }
+
+        canvas {
+            border: 2px solid black;
+        }
+
+        #gameContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #audioContainer {
+            margin-top: 10px;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #endSpace {
+            margin-top: 50px;
+            min-height: 200px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Happy Birthday, Shero</h1>
+
+        <div class="photos">
+            <img src="./shedo.PNG" alt="shedo">
+        </div>
+
+        <div id="audioContainer">
+            <audio id="backgroundMusic" loop>
+                <source src="./02 Ivy.mp3" type="audio/mp3">
+            </audio>
+            <button onclick="toggleMusic()" id="musicButton">Play Music</button>
+        </div>
+
+        <div class="game-select">
+            <button onclick="switchGame('snake')">Snake Game</button>
+            <button onclick="switchGame('pong')">Pong</button>
+        </div>
+        <div class="game-container">
+            <canvas id="gameCanvas" width="600" height="400"></canvas>
+            <div class="score">Score: <span id="scoreDisplay">0</span></div>
+            <div class="message" id="messageDisplay"></div>
+            <div class="instructions" id="instructions"></div>
+        </div>
+
+        <div id="endSpace">
+           <p>Happy Birthday Shero, Have a great year ahead. I am very grateful for You, you mean the world to me. I love you a lot, I will always love you.<br>
+                    from Stank
+        </p> 
+        </div>
+    </div>
+
+    <script>
+        // Music Control
+        const backgroundMusic = document.getElementById('backgroundMusic');
+        const musicButton = document.getElementById('musicButton');
+
+        function toggleMusic() {
+            if (backgroundMusic.paused) {
+                backgroundMusic.play();
+                musicButton.textContent = 'Pause Music';
+            } else {
+                backgroundMusic.pause();
+                musicButton.textContent = 'Play Music';
+            }
+        }
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const messageDisplay = document.getElementById('messageDisplay');
+        const instructionsDisplay = document.getElementById('instructions');
+
+        let currentGame = null;
+        let gameLoop = null;
+        let keyHandler = null;
+
+        const winMessages = [
+            "Kya baat hain!!",
+            "Waah Waah",
+            "You light up this game like you light up my life!",
+            "Amazing win, Almost as amazing as your smile!"
+        ];
+
+        const loseMessages = [
+            "Game over, but my love for you never ends!",
+            "ehehehe",
+            "puppi dedunga",
+            "It is okay bubu, I love you 😘",
+        ];
+
+        function getRandomMessage(array) {
+            return array[Math.floor(Math.random() * array.length)];
+        }
+
+        class SnakeGame {
+            constructor() {
+                this.tileCount = 20;
+                this.tileSize = canvas.width / this.tileCount;
+                this.headX = 10;
+                this.headY = 10;
+                this.velocityX = 0;
+                this.velocityY = 0;
+                this.tail = [];
+                this.tailLength = 2;
+                this.foodX = 5;
+                this.foodY = 5;
+                this.score = 0;
+                this.gameSpeed = 120;
+                this.isPaused = false;
+                this.generateFood();
+            }
+
+            generateFood() {
+                do {
+                    this.foodX = Math.floor(Math.random() * this.tileCount);
+                    this.foodY = Math.floor(Math.random() * this.tileCount);
+                } while (this.tail.some(segment =>
+                    segment.x === this.foodX && segment.y === this.foodY));
+            }
+
+            update() {
+                if (this.isPaused) return;
+
+                if (!this.lastUpdate || Date.now() - this.lastUpdate > this.gameSpeed) {
+                    if (this.velocityX === 0 && this.velocityY === 0) return;
+
+                    const nextX = this.headX + this.velocityX;
+                    const nextY = this.headY + this.velocityY;
+
+                    // Check for border collision
+                    if (nextX < 0 || nextX >= this.tileCount || nextY < 0 || nextY >= this.tileCount) {
+                        this.gameOver();
+                        return;
+                    }
+
+                    this.headX = nextX;
+                    this.headY = nextY;
+
+                    if (this.tail.some(segment =>
+                        segment.x === this.headX && segment.y === this.headY)) {
+                        this.gameOver();
+                        return;
+                    }
+
+                    this.tail.unshift({ x: this.headX, y: this.headY });
+                    if (this.tail.length > this.tailLength) {
+                        this.tail.pop();
+                    }
+
+                    if (this.headX === this.foodX && this.headY === this.foodY) {
+                        this.tailLength++;
+                        this.score += 10;
+                        scoreDisplay.textContent = this.score;
+                        this.generateFood();
+                        this.gameSpeed = Math.max(60, this.gameSpeed - 2);
+                    }
+
+                    this.lastUpdate = Date.now();
+                }
+            }
+
+            draw() {
+                ctx.fillStyle = '#1a1a1a';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.strokeStyle = '#2a2a2a';
+                ctx.lineWidth = 0.5;
+                for (let i = 0; i < this.tileCount; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(i * this.tileSize, 0);
+                    ctx.lineTo(i * this.tileSize, canvas.height);
+                    ctx.stroke();
+                    ctx.beginPath();
+                    ctx.moveTo(0, i * this.tileSize);
+                    ctx.lineTo(canvas.width, i * this.tileSize);
+                    ctx.stroke();
+                }
+
+                this.tail.forEach((segment, index) => {
+                    const gradient = ctx.createLinearGradient(
+                        segment.x * this.tileSize,
+                        segment.y * this.tileSize,
+                        (segment.x + 1) * this.tileSize,
+                        (segment.y + 1) * this.tileSize
+                    );
+                    gradient.addColorStop(0, '#50fa7b');
+                    gradient.addColorStop(1, '#00ff00');
+                    ctx.fillStyle = gradient;
+                    ctx.fillRect(
+                        segment.x * this.tileSize + 1,
+                        segment.y * this.tileSize + 1,
+                        this.tileSize - 2,
+                        this.tileSize - 2
+                    );
+                });
+
+                ctx.fillStyle = '#ff0000';
+                ctx.shadowColor = '#ff0000';
+                ctx.shadowBlur = 10;
+                ctx.beginPath();
+                ctx.arc(
+                    this.foodX * this.tileSize + this.tileSize/2,
+                    this.foodY * this.tileSize + this.tileSize/2,
+                    this.tileSize/2 - 2,
+                    0,
+                    Math.PI * 2
+                );
+                ctx.fill();
+                ctx.shadowBlur = 0;
+            }
+
+            handleKeyPress(e) {
+                if (e.key === 'p' || e.key === 'P') {
+                    this.isPaused = !this.isPaused;
+                    messageDisplay.textContent = this.isPaused ?
+                        "Game Paused! Press 'P' to continue 💕" : "";
+                    return;
+                }
+
+                if (this.isPaused) return;
+
+                const newDirection = {
+                    'ArrowUp': { x: 0, y: -1 },
+                    'ArrowDown': { x: 0, y: 1 },
+                    'ArrowLeft': { x: -1, y: 0 },
+                    'ArrowRight': { x: 1, y: 0 }
+                }[e.key];
+
+                if (newDirection) {
+                    if (this.velocityX !== -newDirection.x || this.velocityY !== -newDirection.y) {
+                        this.velocityX = newDirection.x;
+                        this.velocityY = newDirection.y;
+                    }
+                }
+            }
+
+            gameOver() {
+                messageDisplay.textContent = getRandomMessage(loseMessages);
+                stopGame();
+            }
+        }
+
+        class PongGame {
+            constructor() {
+                this.paddleHeight = 100;
+                this.paddleWidth = 12;
+                this.ballSize = 12;
+                this.paddleSpeed = 8;
+                this.ballSpeedX = 5;
+                this.ballSpeedY = 5;
+                this.maxBallSpeed = 15;
+                
+                this.paddle1Y = canvas.height/2 - this.paddleHeight/2;
+                this.paddle2Y = canvas.height/2 - this.paddleHeight/2;
+                this.ballX = canvas.width/2;
+                this.ballY = canvas.height/2;
+                
+                this.score = 0;
+                this.computerSpeed = 5.5;
+                this.ballInPlay = false;
+                this.particles = [];
+                this.isPaused = false;
+            }
+
+            createParticles(x, y, count) {
+                for (let i = 0; i < count; i++) {
+                    this.particles.push({
+                        x,
+                        y,
+                        speedX: (Math.random() - 0.5) * 8,
+                        speedY: (Math.random() - 0.5) * 8,
+                        life: 1
+                    });
+                }
+            }
+
+            update() {
+                if (this.isPaused) return;
+
+                this.particles = this.particles.filter(p => {
+                    p.x += p.speedX;
+                    p.y += p.speedY;
+                    p.life -= 0.02;
+                    return p.life > 0;
+                });
+
+                if (!this.ballInPlay) {
+                    this.ballX = canvas.width/2;
+                    this.ballY = canvas.height/2;
+                    return;
+                }
+
+                const nextX = this.ballX + this.ballSpeedX;
+                const nextY = this.ballY + this.ballSpeedY;
+
+                // Ball collision with top and bottom
+                if (nextY < 0 || nextY > canvas.height - this.ballSize) {
+                    this.ballSpeedY = -this.ballSpeedY;
+                    this.createParticles(this.ballX, nextY < 0 ? 0 : canvas.height, 10);
+                }
+
+                // Ball collision with paddles
+                if (nextX < this.paddleWidth && 
+                    nextY > this.paddle1Y && 
+                    nextY < this.paddle1Y + this.paddleHeight) {
+                    // Calculate angle based on where ball hits paddle
+                    const relativeIntersectY = (this.paddle1Y + (this.paddleHeight/2)) - nextY;
+                    const normalizedIntersectY = relativeIntersectY / (this.paddleHeight/2);
+                    const bounceAngle = normalizedIntersectY * Math.PI/3;
+                    
+                    const speed = Math.min(Math.sqrt(this.ballSpeedX * this.ballSpeedX + 
+                        this.ballSpeedY * this.ballSpeedY) * 1.05, this.maxBallSpeed);
+                    
+                    this.ballSpeedX = speed * Math.cos(bounceAngle);
+                    this.ballSpeedY = speed * -Math.sin(bounceAngle);
+                    
+                    this.createParticles(this.ballX, this.ballY, 15);
+                    this.score += 5;
+                    scoreDisplay.textContent = this.score;
+                } else if (nextX > canvas.width - this.paddleWidth - this.ballSize && 
+                    nextY > this.paddle2Y && nextY < this.paddle2Y + this.paddleHeight) {
+                    // Ball hits AI paddle
+                    this.ballSpeedX = -this.ballSpeedX;
+                    this.createParticles(this.ballX, this.ballY, 15);
+                } else if (nextX < 0) {
+                    // Player missed
+                    this.ballInPlay = false;
+                    messageDisplay.textContent = getRandomMessage(loseMessages);
+                    stopGame();
+                } else if (nextX > canvas.width) {
+                    // AI missed - player scores
+                    this.score += 10;
+                    scoreDisplay.textContent = this.score;
+                    messageDisplay.textContent = getRandomMessage(winMessages);
+                    this.ballInPlay = false;
+                    setTimeout(() => {
+                        this.ballInPlay = true;
+                        this.resetBall();
+                    }, 1000);
+                }
+
+                this.ballX += this.ballSpeedX;
+                this.ballY += this.ballSpeedY;
+
+                // AI paddle movement
+                if (this.ballY > this.paddle2Y + this.paddleHeight / 2) {
+                    this.paddle2Y += this.computerSpeed;
+                } else {
+                    this.paddle2Y -= this.computerSpeed;
+                }
+
+                // Clamp AI paddle within canvas
+                this.paddle2Y = Math.max(0, Math.min(canvas.height - this.paddleHeight, this.paddle2Y));
+            }
+
+            draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Draw paddles
+                ctx.fillStyle = "#ff69b4";
+                ctx.fillRect(0, this.paddle1Y, this.paddleWidth, this.paddleHeight); // Player paddle
+                ctx.fillRect(canvas.width - this.paddleWidth, this.paddle2Y, this.paddleWidth, this.paddleHeight); // AI paddle
+
+                // Draw ball
+                ctx.fillStyle = "#9b4dca";
+                ctx.fillRect(this.ballX, this.ballY, this.ballSize, this.ballSize);
+
+                // Draw particles
+                this.particles.forEach(p => {
+                    ctx.fillStyle = `rgba(255, 105, 180, ${p.life})`;
+                    ctx.fillRect(p.x, p.y, 4, 4);
+                });
+            }
+
+            handleKeyPress(e) {
+                // Player paddle movement
+                if (e.key === 'ArrowUp') {
+                    this.paddle1Y = Math.max(0, this.paddle1Y - this.paddleSpeed);
+                } else if (e.key === 'ArrowDown') {
+                    this.paddle1Y = Math.min(canvas.height - this.paddleHeight, this.paddle1Y + this.paddleSpeed);
+                } else if (e.key === 'p' || e.key === 'P') {
+                    this.isPaused = !this.isPaused;
+                    messageDisplay.textContent = this.isPaused ? "Game Paused! Press 'P' to continue 💕" : "";
+                }
+            }
+
+            resetBall() {
+                this.ballX = canvas.width / 2;
+                this.ballY = canvas.height / 2;
+                this.ballSpeedX = 5 * (Math.random() > 0.5 ? 1 : -1);
+                this.ballSpeedY = 5 * (Math.random() > 0.5 ? 1 : -1);
+            }
+        }
+
+        function switchGame(gameName) {
+            stopGame();
+            if (gameName === 'snake') {
+                currentGame = new SnakeGame();
+                instructionsDisplay.textContent = "Use arrow keys to move the snake! Press 'P' to pause.";
+            } else if (gameName === 'pong') {
+                currentGame = new PongGame();
+                currentGame.ballInPlay = true;
+                instructionsDisplay.textContent = "Use arrow keys to move! Press 'P' to pause.";
+            }
+            if (currentGame) {
+                gameLoop = setInterval(() => {
+                    currentGame.update();
+                    currentGame.draw();
+                }, 1000 / 60);
+                keyHandler = (e) => currentGame.handleKeyPress(e);
+                document.addEventListener('keydown', keyHandler);
+            }
+        }
+
+        function stopGame() {
+            clearInterval(gameLoop);
+            if (keyHandler) {
+                document.removeEventListener('keydown', keyHandler);
+                keyHandler = null;
+            }
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            scoreDisplay.textContent = "0";
+        }
+
+        window.addEventListener('keydown', function(e) {
+            if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].indexOf(e.key) > -1) {
+                e.preventDefault();
+            }
+        }, false);
+
+        // Start with Snake game by default
+        switchGame('snake');
+    </script>
+</body>
+</html>
